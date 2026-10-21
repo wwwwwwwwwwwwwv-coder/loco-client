@@ -64,6 +64,16 @@ const languageCode = computed(() => {
   return locale.value.split('-')[0]
 })
 
+const filterCountryOption = (
+  input: string,
+  option?: { value?: string | number | null; label?: unknown },
+) => {
+  const keyword = input.toLowerCase()
+  return [option?.value, option?.label].some((text) =>
+    String(text ?? '').toLowerCase().includes(keyword),
+  )
+}
+
 const validateCode = async () => {
   if (formState.verifyCode.length !== 6) {
     return Promise.reject(t('codeRequired'))
@@ -336,8 +346,14 @@ onMounted(() => {
               v-model:value="formState.country"
               :placeholder="t('countryRegion')"
               showSearch
+              :filter-option="filterCountryOption"
             >
-              <a-select-option v-for="item in countyJson" :key="item.iso2" :value="item.iso2">
+              <a-select-option
+                v-for="item in countyJson"
+                :key="item.iso2"
+                :value="item.iso2"
+                :label="locale === 'zh-CN' ? item.chineseName : item.name"
+              >
                 <div class="flex items-center gap-9px">
                   <img
                     :src="item.icon"
@@ -476,18 +492,18 @@ onMounted(() => {
               <a
                 target="_blank"
                 class="text-#375FF1"
-                :href="`https://assets.gat-pay.com/images/gat-pay/agreement/用户使用条款-${languageCode}.pdf`"
+                :href="`https://assets.locopay.io/images/gat-pay/agreement/用户使用条款-${languageCode}.pdf`"
                 >《{{ t('userAgreement') }}》</a
               >、<a
                 target="_blank"
                 class="text-#375FF1"
-                :href="`https://assets.gat-pay.com/images/gat-pay/agreement/用户隐私协议-${languageCode}.pdf`"
+                :href="`https://assets.locopay.io/images/gat-pay/agreement/用户隐私协议-${languageCode}.pdf`"
                 >《{{ t('privacyPolicy') }}》</a
               >{{ t('agreementAnd')
               }}<a
                 target="_blank"
                 class="text-#375FF1"
-                :href="`https://assets.gat-pay.com/images/gat-pay/agreement/AML协议-${languageCode}.pdf`"
+                :href="`https://assets.locopay.io/images/gat-pay/agreement/AML协议-${languageCode}.pdf`"
                 >《{{ t('riskDisclosure') }}》</a
               >
             </a-checkbox>

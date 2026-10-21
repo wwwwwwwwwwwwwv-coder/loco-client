@@ -16,13 +16,13 @@ const config: {
    */
   base_url: {
     // 开发环境接口前缀
-    base: 'http://16.106.22.35:9001/app',
+    base: 'https://api.locopay.io/app',
 
     // 打包开发环境接口前缀
-    dev: 'http://16.106.22.35:9001/app',
+    dev: 'https://api.locopay.io/app',
 
     // 打包生产环境接口前缀
-    pro: 'https://access.baidualiyun.com/app',
+    pro: 'https://api.locopay.io/app',
 
     // 打包测试环境接口前缀
     test: '',
