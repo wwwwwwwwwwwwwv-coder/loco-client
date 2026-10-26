@@ -6,25 +6,50 @@ import { message } from 'ant-design-vue'
 import type { FormInstance } from 'ant-design-vue'
 import type { Rule } from 'ant-design-vue/es/form'
 import shieldImage from '@/assets/image/duanpai.png'
+import { commonSendCodeApi, mallAuthApi } from '@/api'
+import { passwordRules } from '@/utlis'
+import { setAppLocale, supportedLocales } from '@/i18n'
 
 defineOptions({ name: 'AuthorizationView' })
 
-type LoginMode = 'password' | 'code'
+type LoginMode = 'password' | 'verifyCode'
+type AppBridgeWindow = Window & {
+  Android?: { goto: (target: string) => void }
+  webkit?: { messageHandlers?: { goto?: { postMessage: (target: string) => void } } }
+}
 
 const route = useRoute()
 const { t } = useI18n()
+
+watch(
+  () => route.query.lang,
+  (lang) => {
+    if (typeof lang !== 'string') return
+
+    const selectedLocale = supportedLocales.find((item) => item.code === lang)
+    if (selectedLocale) setAppLocale(selectedLocale.code)
+  },
+  { immediate: true },
+)
+
 const formRef = ref<FormInstance>()
 const mode = ref<LoginMode>('password')
 const email = ref('')
 const password = ref('')
 const verificationCode = ref('')
 const googleCode = ref('')
-const isSuccessPreview = computed(() => route.query.preview === 'success')
+const authorizationSucceeded = ref(false)
+const showSuccess = computed(
+  () => authorizationSucceeded.value || (import.meta.env.DEV && route.query.preview === 'success'),
+)
 const secondsLeft = ref(3)
+const codeSecondsLeft = ref(0)
+const isSendingCode = ref(false)
 let countdownTimer: number | undefined
+let codeCountdownTimer: number | undefined
 
 watch(
-  isSuccessPreview,
+  showSuccess,
   (showSuccess) => {
     window.clearInterval(countdownTimer)
     if (!showSuccess) return
@@ -32,13 +57,19 @@ watch(
     secondsLeft.value = 3
     countdownTimer = window.setInterval(() => {
       secondsLeft.value = Math.max(0, secondsLeft.value - 1)
-      if (secondsLeft.value === 0) window.clearInterval(countdownTimer)
+      if (secondsLeft.value === 0) {
+        window.clearInterval(countdownTimer)
+        gotoApp(false)
+      }
     }, 1000)
   },
   { immediate: true },
 )
 
-onBeforeUnmount(() => window.clearInterval(countdownTimer))
+onBeforeUnmount(() => {
+  window.clearInterval(countdownTimer)
+  window.clearInterval(codeCountdownTimer)
+})
 
 const rules = computed<Record<string, Rule[]>>(() => ({
   email: [
@@ -64,28 +95,81 @@ function changeMode(nextMode: LoginMode) {
   formRef.value?.clearValidate('credential')
 }
 
-function requestCode() {
+const requestCode = async () => {
+  if (isSendingCode.value || codeSecondsLeft.value > 0) return
+
   if (!email.value || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value)) {
     void formRef.value?.validateFields('email').catch(() => undefined)
     return
   }
 
-  message.info(t('authorizationCodeUnavailable'))
+  const params = { email: form.value.email, type: 'email', operateType: 'login' }
+  isSendingCode.value = true
+  try {
+    await commonSendCodeApi(params)
+    codeSecondsLeft.value = 60
+    window.clearInterval(codeCountdownTimer)
+    codeCountdownTimer = window.setInterval(() => {
+      codeSecondsLeft.value = Math.max(0, codeSecondsLeft.value - 1)
+      if (codeSecondsLeft.value === 0) window.clearInterval(codeCountdownTimer)
+    }, 1000)
+    await message.success(t('codeSent'))
+  } catch (error) {
+    console.log(error)
+  } finally {
+    isSendingCode.value = false
+  }
 }
 
-function submitAuthorization() {
-  // The app authorization endpoint and callback contract have not been supplied yet.
-  // Never show a real success state before the server confirms authorization.
-  message.info(t('authorizationUnavailable'))
+const submitAuthorization = async () => {
+  const params = {
+    loginName: form.value.email,
+    type: mode.value,
+    userPassword: passwordRules(form.value.credential),
+    verifyCode: verificationCode.value,
+    googleAuthCode: googleCode.value,
+    agree: true,
+    authCode: route.query.authCode,
+  }
+  await mallAuthApi(params)
+  authorizationSucceeded.value = true
 }
 
 async function validateAndSubmit() {
   try {
     await formRef.value?.validate()
-    submitAuthorization()
+    await submitAuthorization()
   } catch {
     // Ant Design Vue displays the relevant field errors.
   }
+}
+
+function gotoApp(showWarning = true) {
+  const appWindow = window as AppBridgeWindow
+
+  try {
+    if (appWindow.Android?.goto) {
+      appWindow.Android.goto('123')
+      return
+    }
+
+    if (appWindow.webkit?.messageHandlers?.goto) {
+      appWindow.webkit.messageHandlers.goto.postMessage('123')
+      return
+    }
+  } catch (error) {
+    console.error('App goto failed', error)
+    if (showWarning) message.warning(t('authorizationReturnFailed'))
+    return
+  }
+
+  if (showWarning) message.warning(t('authorizationAppRequired'))
+}
+
+function handleReturnClick() {
+  window.clearInterval(countdownTimer)
+  secondsLeft.value = 0
+  gotoApp()
 }
 </script>
 
@@ -93,7 +177,7 @@ async function validateAndSubmit() {
   <main
     class="min-h-[100vh] mx-auto flex min-h-100dvh w-full max-w-520px flex-col bg-white text-#1d2023"
   >
-    <template v-if="isSuccessPreview">
+    <template v-if="showSuccess">
       <section class="success-content flex flex-1 flex-col items-center text-center">
         <h1 class="text-26px font-600 leading-39px tracking-1px">
           {{ t('authorizationSuccess') }}
@@ -101,8 +185,7 @@ async function validateAndSubmit() {
         <img :src="shieldImage" alt="" class="success-shield w-120px" />
       </section>
       <div class="bottom-area px-16px">
-        <!-- App return target is pending the native Deep Link or JS Bridge contract. -->
-        <a-button type="primary" block class="primary-button">
+        <a-button type="primary" block class="primary-button" @click="handleReturnClick">
           {{
             secondsLeft > 0
               ? t('authorizationReturnCountdown', { seconds: secondsLeft })
@@ -137,9 +220,15 @@ async function validateAndSubmit() {
               :placeholder="t('authorizationEmailPlaceholder')"
               class="auth-input"
             >
-              <template v-if="mode === 'code'" #suffix>
-                <a-button type="link" class="code-button" @click="requestCode">
-                  {{ t('getCode') }}
+              <template v-if="mode === 'verifyCode'" #suffix>
+                <a-button
+                  type="link"
+                  class="code-button"
+                  :loading="isSendingCode"
+                  :disabled="codeSecondsLeft > 0"
+                  @click="requestCode"
+                >
+                  {{ codeSecondsLeft > 0 ? `${codeSecondsLeft}${t('resendCode')}` : t('getCode') }}
                 </a-button>
               </template>
             </a-input>
@@ -163,9 +252,9 @@ async function validateAndSubmit() {
               <button
                 type="button"
                 role="tab"
-                :aria-selected="mode === 'code'"
-                :class="['mode-tab', { active: mode === 'code' }]"
-                @click="changeMode('code')"
+                :aria-selected="mode === 'verifyCode'"
+                :class="['mode-tab', { active: mode === 'verifyCode' }]"
+                @click="changeMode('verifyCode')"
               >
                 {{ t('code') }}
               </button>
@@ -295,6 +384,10 @@ async function validateAndSubmit() {
     padding: 0;
     color: @brand-blue;
     font-size: 15px;
+  }
+
+  :deep(.code-button:disabled) {
+    color: #b9bbbd;
   }
 }
 
