@@ -25,6 +25,14 @@ const router = createRouter({
       },
     },
     {
+      path: '/authorization',
+      name: 'authorization',
+      component: () => import('@/views/Authorization.vue'),
+      meta: {
+        title: 'Authorization',
+      },
+    },
+    {
       path: '/:pathMatch(.*)*',
       name: 'not-found',
       redirect: { name: 'register' },
@@ -33,7 +41,7 @@ const router = createRouter({
 })
 
 router.afterEach((to) => {
-  document.title = to.meta.title ? `${String(to.meta.title)} | GAT Pay` : 'GAT Pay'
+  document.title = to.meta.title ? `${String(to.meta.title)} | Loco Pay` : 'Loco Pay'
 })
 
 export default router
