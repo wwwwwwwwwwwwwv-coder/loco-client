@@ -13,10 +13,6 @@ import { setAppLocale, supportedLocales } from '@/i18n'
 defineOptions({ name: 'AuthorizationView' })
 
 type LoginMode = 'password' | 'verifyCode'
-type AppBridgeWindow = Window & {
-  Android?: { goto: (target: string) => void }
-  webkit?: { messageHandlers?: { goto?: { postMessage: (target: string) => void } } }
-}
 
 const route = useRoute()
 const { t } = useI18n()
@@ -121,6 +117,7 @@ const requestCode = async () => {
   }
 }
 
+let authCode = ''
 const submitAuthorization = async () => {
   const params = {
     loginName: form.value.email,
@@ -131,7 +128,8 @@ const submitAuthorization = async () => {
     agree: true,
     authCode: route.query.authCode,
   }
-  await mallAuthApi(params)
+  const { data } = await mallAuthApi(params)
+  authCode = data.authCode
   authorizationSucceeded.value = true
 }
 
@@ -145,25 +143,19 @@ async function validateAndSubmit() {
 }
 
 function gotoApp(showWarning = true) {
-  const appWindow = window as AppBridgeWindow
-
-  try {
-    if (appWindow.Android?.goto) {
-      appWindow.Android.goto('123')
-      return
-    }
-
-    if (appWindow.webkit?.messageHandlers?.goto) {
-      appWindow.webkit.messageHandlers.goto.postMessage('123')
-      return
-    }
-  } catch (error) {
-    console.error('App goto failed', error)
+  if (!authCode) {
     if (showWarning) message.warning(t('authorizationReturnFailed'))
     return
   }
 
-  if (showWarning) message.warning(t('authorizationAppRequired'))
+  const link = `easyget://wallet/authorize?authCode=${encodeURIComponent(authCode)}`
+
+  try {
+    window.location.assign(link)
+  } catch (error) {
+    console.error('App goto failed', error)
+    if (showWarning) message.warning(t('authorizationReturnFailed'))
+  }
 }
 
 function handleReturnClick() {
