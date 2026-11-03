@@ -22,7 +22,7 @@ const config: {
     dev: 'https://api.locopay.io/app',
 
     // 打包生产环境接口前缀
-    pro: 'https://api.locopay.io/app',
+    pro: 'https://access.loco-pay.com/app',
 
     // 打包测试环境接口前缀
     test: '',

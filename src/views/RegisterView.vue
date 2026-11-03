@@ -122,9 +122,9 @@ const rules = computed<Record<string, Rule[]>>(() => ({
     { validator: validatePwd, trigger: ['blur', 'change'] },
   ],
   confirmPassword: [{ validator: validateConfirmPassword, trigger: ['blur', 'change'] }],
-  referralCode: [
-    { required: true, message: t('referralPlaceholder'), trigger: ['blur', 'change'] },
-  ],
+  // referralCode: [
+  //   { required: true, message: t('referralPlaceholder'), trigger: ['blur', 'change'] },
+  // ],
   agreement: [{ validator: validateAgreement, trigger: 'change' }],
 }))
 
