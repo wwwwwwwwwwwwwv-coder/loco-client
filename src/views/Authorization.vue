@@ -126,7 +126,7 @@ const submitAuthorization = async () => {
     verifyCode: verificationCode.value,
     googleAuthCode: googleCode.value,
     agree: true,
-    authCode: route.query.authCode,
+    ...route.query,
   }
   const { data } = await mallAuthApi(params)
   authCode = data.authCode
@@ -148,7 +148,12 @@ function gotoApp(showWarning = true) {
     return
   }
 
-  const link = `easyget://wallet/authorize?authCode=${encodeURIComponent(authCode)}`
+  // mall: 7f3a9c2e-8b41-4d65-a0f2-6e9b1c5d8347 # 商城商户应用ID
+  // securities: c2e8b741-5d93-4a6f-b108-9f3d7a2c6e54 #证券商户应用ID
+  let link = `easyget://wallet/authorize?authCode=${encodeURIComponent(authCode)}`
+  if (route.query.applicationId === 'c2e8b741-5d93-4a6f-b108-9f3d7a2c6e54') {
+    link = `goldentour://wallet/authorize?authCode=${encodeURIComponent(authCode)}`
+  }
 
   try {
     window.location.assign(link)
